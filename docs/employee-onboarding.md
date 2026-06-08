@@ -11,7 +11,7 @@
 - 网关类型：`LiteLLM` 或 `New API`
 - 网关地址：例如 `https://ai-gateway.example.com`
 - 个人 token：例如 `sk-...`
-- 可用模型：例如 `deepseek-chat`、`claude-sonnet-4-5`、`gpt-5-mini`
+- 可用模型：例如 `deepseek-chat`、`claude-sonnet-4-5`、`gpt-5.5`
 - 是否必须通过公司 VPN 或固定办公网络访问
 
 不要索要或保存上游供应商 key。员工只使用网关发放的个人 token。
@@ -55,6 +55,12 @@ claude --model deepseek-chat
 
 ```bash
 claude --model claude-sonnet-4-5
+```
+
+如果管理员开放了 OpenAI GPT 模型，也可以使用：
+
+```bash
+claude --model gpt-5.5
 ```
 
 如果使用 DeepSeek、Gemini 等非 Anthropic 原生模型时遇到 beta/header 兼容问题，再增加：
@@ -107,7 +113,7 @@ export OPENAI_API_KEY="sk-你的个人-new-api-token"
 
 ```text
 deepseek-chat
-gpt-5-mini
+gpt-5.5
 gemini-2.5-pro
 ```
 
@@ -163,7 +169,7 @@ deepseek-chat
 其他模型别名即使在配置文件里存在，也需要管理员在网关上配置对应供应商 key 后才能使用。例如：
 
 - `claude-sonnet-4-5` 需要 Anthropic key
-- `gpt-5-mini` 需要 OpenAI key
+- `gpt-5.5` 需要 OpenAI key
 - `gemini-2.5-pro` 需要 Gemini key
 
 管理员发 token 时，建议只给员工开放已经配置成功的模型，避免员工选到不可用模型。

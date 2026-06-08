@@ -15,11 +15,11 @@ model_list:
       model: anthropic/claude-sonnet-4-5-20250929
       api_key: os.environ/ANTHROPIC_API_KEY
 
-  # 面向 Codex/Cursor/服务端 SDK 的 OpenAI-compatible 模型别名。
+  # 面向 Claude Code/Codex/Cursor/服务端 SDK 的 OpenAI 模型别名。
   # 需要在远端 .env 配置 OPENAI_API_KEY。
-  - model_name: gpt-5-mini
+  - model_name: gpt-5.5
     litellm_params:
-      model: openai/gpt-5-mini
+      model: openai/gpt-5.5
       api_key: os.environ/OPENAI_API_KEY
 
   # Gemini 模型别名，可作为第二供应商或 fallback 模型。

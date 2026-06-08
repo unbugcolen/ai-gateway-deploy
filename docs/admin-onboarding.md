@@ -119,7 +119,7 @@ curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
 ```text
 deepseek-chat
 claude-sonnet-4-5
-gpt-5-mini
+gpt-5.5
 gemini-2.5-pro
 ```
 
