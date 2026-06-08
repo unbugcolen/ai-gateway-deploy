@@ -1,0 +1,79 @@
+services:
+  new-api:
+    image: ${NEW_API_IMAGE:-calciumion/new-api:latest}
+    container_name: ai-gateway-new-api
+    restart: always
+    command: --log-dir /app/logs
+    env_file:
+      - .env
+    ports:
+      - "${PUBLIC_PORT:-3000}:3000"
+    volumes:
+      - new_api_data:/data
+      - new_api_logs:/app/logs
+    environment:
+      SQL_DSN: "postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-newapi}"
+      REDIS_CONN_STRING: "redis://redis:6379"
+      TZ: "${TZ:-Asia/Shanghai}"
+      SESSION_SECRET: "${SESSION_SECRET}"
+      CRYPTO_SECRET: "${CRYPTO_SECRET}"
+      FRONTEND_BASE_URL: "${FRONTEND_BASE_URL:-}"
+      ERROR_LOG_ENABLED: "${ERROR_LOG_ENABLED:-true}"
+      BATCH_UPDATE_ENABLED: "${BATCH_UPDATE_ENABLED:-true}"
+      MEMORY_CACHE_ENABLED: "${MEMORY_CACHE_ENABLED:-true}"
+      GENERATE_DEFAULT_TOKEN: "${GENERATE_DEFAULT_TOKEN:-false}"
+      GLOBAL_API_RATE_LIMIT_ENABLE: "${GLOBAL_API_RATE_LIMIT_ENABLE:-true}"
+      GLOBAL_API_RATE_LIMIT: "${GLOBAL_API_RATE_LIMIT:-300}"
+      GLOBAL_API_RATE_LIMIT_DURATION: "${GLOBAL_API_RATE_LIMIT_DURATION:-180}"
+      STREAMING_TIMEOUT: "${STREAMING_TIMEOUT:-300}"
+      CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED: "${CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED:-true}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-gateway-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-newapi}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-newapi}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newapi} -d ${POSTGRES_DB:-newapi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai-gateway-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  new_api_data:
+  new_api_logs:
+  postgres_data:
+  redis_data:

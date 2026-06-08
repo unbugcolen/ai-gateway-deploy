@@ -1,0 +1,47 @@
+services:
+  litellm:
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm-database:main-latest}
+    container_name: ai-gateway-litellm
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${PUBLIC_PORT:-4000}:4000"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-litellm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-litellm}"
+      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
+      LITELLM_SALT_KEY: "${LITELLM_SALT_KEY}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    command:
+      - "--config"
+      - "/app/config.yaml"
+      - "--port"
+      - "4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-gateway-litellm-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-litellm}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-litellm}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-litellm} -d ${POSTGRES_DB:-litellm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

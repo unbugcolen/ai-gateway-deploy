@@ -1,0 +1,52 @@
+# LiteLLM team gateway baseline.
+#
+# Fill provider keys in the remote .env, then uncomment or add model aliases
+# here. You can also manage virtual keys, budgets, and teams from the LiteLLM UI.
+
+model_list:
+  # Claude Code friendly alias. Keep Claude aliases starting with "claude" or
+  # "anthropic" so Claude Code gateway model discovery can show them.
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: gemini-2.5-pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+
+  - model_name: deepseek-chat
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+litellm_settings:
+  drop_params: true
+  request_timeout: 600
+  default_key_generate_params:
+    max_budget: 50
+    budget_duration: 30d
+    duration: 90d
+  upperbound_key_generate_params:
+    max_budget: 500
+    budget_duration: 30d
+    duration: 180d
+    rpm_limit: 120
+    tpm_limit: 200000
+  key_generation_settings:
+    team_key_generation:
+      allowed_team_member_roles: ["admin"]
+      required_params: ["tags"]
+    personal_key_generation:
+      allowed_user_roles: ["proxy_admin"]
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  store_model_in_db: true
