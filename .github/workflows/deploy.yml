@@ -1,0 +1,146 @@
+name: Deploy AI Gateway
+
+on:
+  workflow_dispatch:
+    inputs:
+      gateway:
+        description: Gateway to deploy
+        required: true
+        default: litellm
+        type: choice
+        options:
+          - litellm
+          - new-api
+      host:
+        description: Target server IP/domain. Empty means repository variable AI_GATEWAY_HOST.
+        required: false
+        type: string
+      ssh_user:
+        description: SSH user on target server.
+        required: true
+        default: root
+        type: string
+      ssh_port:
+        description: SSH port on target server.
+        required: true
+        default: "22"
+        type: string
+      remote_path:
+        description: Remote install path. Empty uses the project default.
+        required: false
+        type: string
+      public_port:
+        description: Public service port. Empty uses gateway default.
+        required: false
+        type: string
+      frontend_url:
+        description: New API public URL. Only used by new-api; empty auto-generates from host/port.
+        required: false
+        type: string
+      environment:
+        description: GitHub environment name for approvals/secrets.
+        required: true
+        default: production
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.gateway }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runner dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y rsync openssh-client
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.AI_GATEWAY_SSH_PRIVATE_KEY }}
+          INPUT_HOST: ${{ inputs.host }}
+          VAR_HOST: ${{ vars.AI_GATEWAY_HOST }}
+          SSH_USER: ${{ inputs.ssh_user }}
+          SSH_PORT: ${{ inputs.ssh_port }}
+        run: |
+          set -euo pipefail
+
+          host="${INPUT_HOST:-$VAR_HOST}"
+          if [[ -z "$host" ]]; then
+            echo "::error::Missing host. Set workflow input host or repository variable AI_GATEWAY_HOST."
+            exit 1
+          fi
+
+          if [[ -z "$SSH_PRIVATE_KEY" ]]; then
+            echo "::error::Missing secret AI_GATEWAY_SSH_PRIVATE_KEY."
+            exit 1
+          fi
+
+          install -m 700 -d ~/.ssh
+          key_file="$HOME/.ssh/ai_gateway_deploy_key"
+          printf '%s\n' "$SSH_PRIVATE_KEY" >"$key_file"
+          chmod 600 "$key_file"
+
+          cat >~/.ssh/config <<EOF
+          Host ai-gateway-target
+            HostName ${host}
+            User ${SSH_USER}
+            Port ${SSH_PORT}
+            IdentityFile ${key_file}
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+          EOF
+
+          ssh -F ~/.ssh/config -o BatchMode=yes ai-gateway-target 'echo "SSH connection OK"'
+
+      - name: Deploy selected gateway
+        env:
+          GATEWAY: ${{ inputs.gateway }}
+          SSH_USER: ${{ inputs.ssh_user }}
+          SSH_PORT: ${{ inputs.ssh_port }}
+          INPUT_REMOTE_PATH: ${{ inputs.remote_path }}
+          INPUT_PUBLIC_PORT: ${{ inputs.public_port }}
+          INPUT_FRONTEND_URL: ${{ inputs.frontend_url }}
+        run: |
+          set -euo pipefail
+
+          case "$GATEWAY" in
+            litellm)
+              script="./scripts/deploy-litellm.sh"
+              default_remote_path="/opt/ai-gateway/litellm"
+              default_public_port="4000"
+              ;;
+            new-api)
+              script="./scripts/deploy-new-api.sh"
+              default_remote_path="/opt/ai-gateway/new-api"
+              default_public_port="3000"
+              ;;
+            *)
+              echo "::error::Unsupported gateway: $GATEWAY"
+              exit 1
+              ;;
+          esac
+
+          remote_path="${INPUT_REMOTE_PATH:-$default_remote_path}"
+          public_port="${INPUT_PUBLIC_PORT:-$default_public_port}"
+
+          args=(
+            "--host" "ai-gateway-target"
+            "--user" "$SSH_USER"
+            "--ssh-port" "$SSH_PORT"
+            "--path" "$remote_path"
+            "--public-port" "$public_port"
+          )
+
+          if [[ "$GATEWAY" == "new-api" && -n "$INPUT_FRONTEND_URL" ]]; then
+            args+=("--frontend-url" "$INPUT_FRONTEND_URL")
+          fi
+
+          "$script" "${args[@]}"

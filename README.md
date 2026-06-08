@@ -252,6 +252,77 @@ docker run --rm \
   alpine tar czf /to/postgres-data-$(date +%F).tgz -C /from .
 ```
 
+## GitHub Actions 部署
+
+本项目提供两个流水线：
+
+- `Validate`：push/PR 到 `main` 时自动校验 shell 脚本语法和两个 Docker Compose 模板。
+- `Deploy AI Gateway`：手动触发部署，支持选择 `litellm` 或 `new-api`。
+
+### 运维需要配置的 GitHub Secrets / Variables
+
+在 GitHub 仓库进入 `Settings -> Secrets and variables -> Actions`：
+
+必填 Secret：
+
+```text
+AI_GATEWAY_SSH_PRIVATE_KEY
+```
+
+说明：目标服务器 SSH 私钥，要求能登录部署账号。推荐为该部署单独创建一把 key，不要复用个人日常 key。
+
+可选 Repository Variable：
+
+```text
+AI_GATEWAY_HOST
+```
+
+说明：固定 IP 或域名。也可以每次运行流水线时在 `host` 输入框里填写。
+
+### 手动部署步骤
+
+1. 打开 GitHub 仓库的 `Actions`。
+2. 选择 `Deploy AI Gateway`。
+3. 点击 `Run workflow`。
+4. 选择：
+   - `gateway`: `litellm` 或 `new-api`
+   - `host`: 固定 IP；为空时使用 `AI_GATEWAY_HOST`
+   - `ssh_user`: 默认 `root`
+   - `ssh_port`: 默认 `22`
+   - `remote_path`: 为空时使用默认路径
+   - `public_port`: 为空时使用默认端口
+   - `frontend_url`: 仅 New API 需要，绑定域名/HTTPS 时填写
+
+默认部署路径：
+
+| 方案 | 默认远端路径 | 默认端口 |
+| --- | --- | --- |
+| LiteLLM | `/opt/ai-gateway/litellm` | `4000` |
+| New API | `/opt/ai-gateway/new-api` | `3000` |
+
+### 流水线部署后的人工配置
+
+流水线只上传部署模板并启动容器，不会把供应商 API key 写进仓库。
+
+LiteLLM：
+
+```bash
+ssh root@<固定IP>
+cd /opt/ai-gateway/litellm
+vim .env
+docker compose up -d
+```
+
+New API：
+
+```bash
+ssh root@<固定IP>
+cd /opt/ai-gateway/new-api
+docker compose ps
+```
+
+New API 的供应商 key 建议在后台“渠道管理”里录入。
+
 ## 安全建议
 
 - 不把任何上游供应商 key 写进 git。

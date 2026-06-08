@@ -1,18 +1,30 @@
 services:
   litellm:
+    # Database-enabled LiteLLM image, required for teams, virtual keys, budgets, and UI state.
     image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm-database:main-latest}
     container_name: ai-gateway-litellm
+
+    # Restart automatically after host reboot or container crash.
     restart: always
+
+    # Runtime secrets and deployment-specific values live in remote .env.
     env_file:
       - .env
     ports:
+      # Expose LiteLLM API/UI on the fixed IP server.
       - "${PUBLIC_PORT:-4000}:4000"
     volumes:
+      # Keep routing/model policy in git, mount read-only into the container.
       - ./config.yaml:/app/config.yaml:ro
     environment:
+      # Internal PostgreSQL DSN. Uses the postgres service below.
       DATABASE_URL: "postgresql://${POSTGRES_USER:-litellm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-litellm}"
+
+      # LiteLLM admin/root secret and credential encryption salt.
       LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
       LITELLM_SALT_KEY: "${LITELLM_SALT_KEY}"
+
+      # Provider keys are optional at boot. Requests to aliases without keys will fail until ops fills .env.
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
@@ -25,9 +37,11 @@ services:
       - "4000"
     depends_on:
       postgres:
+        # Wait until PostgreSQL is ready before starting LiteLLM.
         condition: service_healthy
 
   postgres:
+    # Persistent database for LiteLLM keys, budgets, teams, and UI state.
     image: postgres:16-alpine
     container_name: ai-gateway-litellm-postgres
     restart: always
@@ -36,6 +50,7 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       POSTGRES_DB: "${POSTGRES_DB:-litellm}"
     volumes:
+      # Named volume keeps data across container upgrades.
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-litellm} -d ${POSTGRES_DB:-litellm}"]
@@ -44,4 +59,5 @@ services:
       retries: 10
 
 volumes:
+  # Docker-managed volume. Back up this volume before destructive maintenance.
   postgres_data:

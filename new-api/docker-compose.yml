@@ -1,19 +1,33 @@
 services:
   new-api:
+    # New API application image.
     image: ${NEW_API_IMAGE:-calciumion/new-api:latest}
     container_name: ai-gateway-new-api
+
+    # Restart automatically after host reboot or container crash.
     restart: always
+
+    # Write application logs to /app/logs so they can be persisted by volume.
     command: --log-dir /app/logs
+
+    # Runtime secrets and deployment-specific values live in remote .env.
     env_file:
       - .env
     ports:
+      # Expose New API web UI and API on the fixed IP server.
       - "${PUBLIC_PORT:-3000}:3000"
     volumes:
+      # New API local data and logs. PostgreSQL remains the main persistent DB.
       - new_api_data:/data
       - new_api_logs:/app/logs
     environment:
+      # Internal PostgreSQL DSN. Uses the postgres service below.
       SQL_DSN: "postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-newapi}"
+
+      # Internal Redis connection for cache/queue features.
       REDIS_CONN_STRING: "redis://redis:6379"
+
+      # Runtime behavior and team defaults.
       TZ: "${TZ:-Asia/Shanghai}"
       SESSION_SECRET: "${SESSION_SECRET}"
       CRYPTO_SECRET: "${CRYPTO_SECRET}"
@@ -29,8 +43,10 @@ services:
       CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED: "${CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED:-true}"
     depends_on:
       postgres:
+        # Wait until PostgreSQL is ready before starting New API.
         condition: service_healthy
       redis:
+        # Wait until Redis is ready before starting New API.
         condition: service_healthy
     healthcheck:
       test:
@@ -44,6 +60,7 @@ services:
       start_period: 30s
 
   postgres:
+    # Persistent database for New API users, tokens, channels, quota, and logs.
     image: postgres:15-alpine
     container_name: ai-gateway-postgres
     restart: always
@@ -52,6 +69,7 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       POSTGRES_DB: "${POSTGRES_DB:-newapi}"
     volumes:
+      # Named volume keeps data across container upgrades.
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newapi} -d ${POSTGRES_DB:-newapi}"]
@@ -60,9 +78,11 @@ services:
       retries: 10
 
   redis:
+    # Redis cache/queue backend used by New API.
     image: redis:7-alpine
     container_name: ai-gateway-redis
     restart: always
+    # Enable append-only persistence for safer restarts.
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -73,6 +93,7 @@ services:
       retries: 10
 
 volumes:
+  # Docker-managed volumes. Back up postgres_data before destructive maintenance.
   new_api_data:
   new_api_logs:
   postgres_data:

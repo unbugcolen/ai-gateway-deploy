@@ -1,52 +1,96 @@
 # LiteLLM team gateway baseline.
 #
-# Fill provider keys in the remote .env, then uncomment or add model aliases
-# here. You can also manage virtual keys, budgets, and teams from the LiteLLM UI.
+# Operational notes:
+# - Provider API keys are read from the remote .env file, not committed here.
+# - model_name is the alias exposed to clients.
+# - litellm_params.model is the real upstream model identifier.
+# - Keep Claude aliases starting with "claude" or "anthropic" so Claude Code
+#   gateway model discovery can show them.
+# - You can manage virtual keys, budgets, and teams from the LiteLLM UI after deployment.
 
 model_list:
-  # Claude Code friendly alias. Keep Claude aliases starting with "claude" or
-  # "anthropic" so Claude Code gateway model discovery can show them.
+  # Claude Code friendly alias.
+  # Requires ANTHROPIC_API_KEY in remote .env.
   - model_name: claude-sonnet-4-5
     litellm_params:
       model: anthropic/claude-sonnet-4-5-20250929
       api_key: os.environ/ANTHROPIC_API_KEY
 
+  # OpenAI-compatible alias for Codex/Cursor/server SDK clients.
+  # Requires OPENAI_API_KEY in remote .env.
   - model_name: gpt-5-mini
     litellm_params:
       model: openai/gpt-5-mini
       api_key: os.environ/OPENAI_API_KEY
 
+  # Gemini alias. Useful as a secondary provider or fallback model.
+  # Requires GEMINI_API_KEY in remote .env.
   - model_name: gemini-2.5-pro
     litellm_params:
       model: gemini/gemini-2.5-pro
       api_key: os.environ/GEMINI_API_KEY
 
+  # DeepSeek alias. Useful for lower-cost coding/chat workloads.
+  # Requires DEEPSEEK_API_KEY in remote .env.
   - model_name: deepseek-chat
     litellm_params:
       model: deepseek/deepseek-chat
       api_key: os.environ/DEEPSEEK_API_KEY
 
 litellm_settings:
+  # Drop unsupported request parameters instead of failing the whole request.
+  # This helps when different clients send provider-specific fields.
   drop_params: true
+
+  # Upstream request timeout in seconds. Coding agents often need long streams.
   request_timeout: 600
+
+  # Defaults applied when admins generate new virtual keys.
+  # Keeps accidental unlimited keys from being created.
   default_key_generate_params:
+    # Default monthly budget per generated key, in LiteLLM's configured currency accounting.
     max_budget: 50
+
+    # Reset budget every 30 days.
     budget_duration: 30d
+
+    # Key expires after 90 days unless renewed.
     duration: 90d
+
+  # Upper bounds for generated keys. Admins cannot exceed these defaults through UI/API.
   upperbound_key_generate_params:
+    # Maximum allowed budget per key.
     max_budget: 500
+
+    # Budget reset window.
     budget_duration: 30d
+
+    # Maximum key lifetime.
     duration: 180d
+
+    # Requests per minute limit.
     rpm_limit: 120
+
+    # Tokens per minute limit.
     tpm_limit: 200000
+
+  # Key generation policy.
   key_generation_settings:
+    # Only team admins can create team keys, and tags are required for cost attribution.
     team_key_generation:
       allowed_team_member_roles: ["admin"]
       required_params: ["tags"]
+
+    # Only proxy admins can create personal keys.
     personal_key_generation:
       allowed_user_roles: ["proxy_admin"]
 
 general_settings:
+  # Root key for admin API/UI. Read from remote .env.
   master_key: os.environ/LITELLM_MASTER_KEY
+
+  # PostgreSQL connection string assembled by docker-compose.yml.
   database_url: os.environ/DATABASE_URL
+
+  # Persist model metadata in DB so UI edits survive container restarts.
   store_model_in_db: true

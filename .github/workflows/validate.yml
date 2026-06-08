@@ -1,0 +1,45 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate deployment templates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check shell syntax
+        run: |
+          set -euo pipefail
+          bash -n scripts/deploy-litellm.sh
+          bash -n scripts/deploy-new-api.sh
+
+      - name: Validate LiteLLM compose
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          cp litellm/docker-compose.yml litellm/.env.example litellm/config.yaml "$tmpdir/"
+          mv "$tmpdir/.env.example" "$tmpdir/.env"
+          sed -i 's/CHANGE_ME_GENERATED_BY_DEPLOY_SCRIPT/local-test-secret/g' "$tmpdir/.env"
+          docker compose --project-directory "$tmpdir" config >/tmp/litellm-compose.yaml
+
+      - name: Validate New API compose
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          cp new-api/docker-compose.yml new-api/.env.example "$tmpdir/"
+          mv "$tmpdir/.env.example" "$tmpdir/.env"
+          sed -i 's/CHANGE_ME_GENERATED_BY_DEPLOY_SCRIPT/local-test-secret/g; s/YOUR_SERVER_IP/127.0.0.1/g' "$tmpdir/.env"
+          docker compose --project-directory "$tmpdir" config >/tmp/new-api-compose.yaml
