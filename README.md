@@ -2,7 +2,10 @@
 
 目标：在一台固定 IP 服务器上部署团队统一 AI API 网关，集中管理 Claude Code、Codex/Cursor、服务端应用的模型入口、供应商 key、成员 token、预算、速率限制和使用记录。
 
-员工接入说明见：[docs/employee-onboarding.md](docs/employee-onboarding.md)。
+对接文档：
+
+- 管理员部署与发放说明：[docs/admin-onboarding.md](docs/admin-onboarding.md)
+- 员工接入使用说明：[docs/employee-onboarding.md](docs/employee-onboarding.md)
 
 本项目保留两个可落地方案：
 

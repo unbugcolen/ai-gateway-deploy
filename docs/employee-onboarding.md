@@ -2,6 +2,8 @@
 
 本文面向需要使用 Claude Code、Codex、Cursor 或 OpenAI-compatible SDK 的员工。
 
+本文只包含员工本地接入步骤。后台配置、token 发放、模型开放和安全策略由管理员处理。
+
 ## 向管理员领取的信息
 
 接入前，请先向管理员确认：
@@ -205,10 +207,3 @@ export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1
 - token 泄露后立即联系管理员吊销。
 - 离职、转岗或项目结束后，应由管理员回收 token。
 - 不要绕过公司网关直接使用上游供应商 key。
-
-## 管理员参考
-
-- LiteLLM 管理 UI：`https://ai-gateway.example.com/ui`
-- LiteLLM 员工 token：创建 virtual key，并限制模型、预算、过期时间、RPM、TPM。
-- New API 管理后台：`https://ai-gateway.example.com`
-- New API 员工 token：在后台创建 token，并限制分组、模型、额度、过期时间和 IP 白名单。
