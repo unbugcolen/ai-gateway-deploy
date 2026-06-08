@@ -1,4 +1,4 @@
-name: Validate
+name: 校验部署模板
 
 on:
   push:
@@ -13,20 +13,20 @@ permissions:
 
 jobs:
   validate:
-    name: Validate deployment templates
+    name: 校验部署模板
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Check shell syntax
+      - name: 检查 shell 脚本语法
         run: |
           set -euo pipefail
           bash -n scripts/deploy-litellm.sh
           bash -n scripts/deploy-new-api.sh
 
-      - name: Validate LiteLLM compose
+      - name: 校验 LiteLLM Compose
         run: |
           set -euo pipefail
           tmpdir="$(mktemp -d)"
@@ -35,7 +35,7 @@ jobs:
           sed -i 's/CHANGE_ME_GENERATED_BY_DEPLOY_SCRIPT/local-test-secret/g' "$tmpdir/.env"
           docker compose --project-directory "$tmpdir" config >/tmp/litellm-compose.yaml
 
-      - name: Validate New API compose
+      - name: 校验 New API Compose
         run: |
           set -euo pipefail
           tmpdir="$(mktemp -d)"

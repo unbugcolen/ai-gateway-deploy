@@ -1,33 +1,33 @@
 services:
   new-api:
-    # New API application image.
+    # New API 应用镜像。
     image: ${NEW_API_IMAGE:-calciumion/new-api:latest}
     container_name: ai-gateway-new-api
 
-    # Restart automatically after host reboot or container crash.
+    # 宿主机重启或容器异常退出后自动拉起。
     restart: always
 
-    # Write application logs to /app/logs so they can be persisted by volume.
+    # 将应用日志写入 /app/logs，便于通过数据卷持久化。
     command: --log-dir /app/logs
 
-    # Runtime secrets and deployment-specific values live in remote .env.
+    # 运行时密钥和部署环境相关配置放在远端 .env。
     env_file:
       - .env
     ports:
-      # Expose New API web UI and API on the fixed IP server.
+      # 在固定 IP 服务器上暴露 New API Web UI 和 API。
       - "${PUBLIC_PORT:-3000}:3000"
     volumes:
-      # New API local data and logs. PostgreSQL remains the main persistent DB.
+      # New API 本地数据与日志。主要业务数据仍以 PostgreSQL 为准。
       - new_api_data:/data
       - new_api_logs:/app/logs
     environment:
-      # Internal PostgreSQL DSN. Uses the postgres service below.
+      # 内部 PostgreSQL 连接串，连接下方 postgres 服务。
       SQL_DSN: "postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-newapi}"
 
-      # Internal Redis connection for cache/queue features.
+      # 内部 Redis 连接，用于缓存/队列能力。
       REDIS_CONN_STRING: "redis://redis:6379"
 
-      # Runtime behavior and team defaults.
+      # 运行时行为和团队默认策略。
       TZ: "${TZ:-Asia/Shanghai}"
       SESSION_SECRET: "${SESSION_SECRET}"
       CRYPTO_SECRET: "${CRYPTO_SECRET}"
@@ -43,10 +43,10 @@ services:
       CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED: "${CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED:-true}"
     depends_on:
       postgres:
-        # Wait until PostgreSQL is ready before starting New API.
+        # 等待 PostgreSQL 就绪后再启动 New API。
         condition: service_healthy
       redis:
-        # Wait until Redis is ready before starting New API.
+        # 等待 Redis 就绪后再启动 New API。
         condition: service_healthy
     healthcheck:
       test:
@@ -60,7 +60,7 @@ services:
       start_period: 30s
 
   postgres:
-    # Persistent database for New API users, tokens, channels, quota, and logs.
+    # 持久化 New API 用户、token、渠道、额度和日志的数据库。
     image: postgres:15-alpine
     container_name: ai-gateway-postgres
     restart: always
@@ -69,7 +69,7 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       POSTGRES_DB: "${POSTGRES_DB:-newapi}"
     volumes:
-      # Named volume keeps data across container upgrades.
+      # 使用 Docker named volume，容器升级后数据仍保留。
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newapi} -d ${POSTGRES_DB:-newapi}"]
@@ -78,11 +78,11 @@ services:
       retries: 10
 
   redis:
-    # Redis cache/queue backend used by New API.
+    # New API 使用的 Redis 缓存/队列后端。
     image: redis:7-alpine
     container_name: ai-gateway-redis
     restart: always
-    # Enable append-only persistence for safer restarts.
+    # 开启 AOF 持久化，降低重启导致的数据丢失风险。
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -93,7 +93,7 @@ services:
       retries: 10
 
 volumes:
-  # Docker-managed volumes. Back up postgres_data before destructive maintenance.
+  # Docker 管理的数据卷。执行破坏性维护前先备份 postgres_data。
   new_api_data:
   new_api_logs:
   postgres_data:

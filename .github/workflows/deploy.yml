@@ -1,10 +1,10 @@
-name: Deploy AI Gateway
+name: 部署 AI Gateway
 
 on:
   workflow_dispatch:
     inputs:
       gateway:
-        description: Gateway to deploy
+        description: 要部署的网关方案
         required: true
         default: litellm
         type: choice
@@ -12,33 +12,33 @@ on:
           - litellm
           - new-api
       host:
-        description: Target server IP/domain. Empty means repository variable AI_GATEWAY_HOST.
+        description: 目标服务器 IP/域名。留空则使用仓库变量 AI_GATEWAY_HOST。
         required: false
         type: string
       ssh_user:
-        description: SSH user on target server.
+        description: 目标服务器 SSH 用户。
         required: true
         default: root
         type: string
       ssh_port:
-        description: SSH port on target server.
+        description: 目标服务器 SSH 端口。
         required: true
         default: "22"
         type: string
       remote_path:
-        description: Remote install path. Empty uses the project default.
+        description: 远端安装路径。留空则使用项目默认路径。
         required: false
         type: string
       public_port:
-        description: Public service port. Empty uses gateway default.
+        description: 对外服务端口。留空则使用网关默认端口。
         required: false
         type: string
       frontend_url:
-        description: New API public URL. Only used by new-api; empty auto-generates from host/port.
+        description: New API 对外访问地址。仅 new-api 使用；留空则按 host/port 自动生成。
         required: false
         type: string
       environment:
-        description: GitHub environment name for approvals/secrets.
+        description: GitHub Environment 名称，用于审批和环境级密钥。
         required: true
         default: production
         type: string
@@ -48,21 +48,21 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy ${{ inputs.gateway }}
+    name: 部署 ${{ inputs.gateway }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Checkout
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Install runner dependencies
+      - name: 安装 runner 依赖
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y rsync openssh-client
 
-      - name: Configure SSH
+      - name: 配置 SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.AI_GATEWAY_SSH_PRIVATE_KEY }}
           INPUT_HOST: ${{ inputs.host }}
@@ -74,12 +74,12 @@ jobs:
 
           host="${INPUT_HOST:-$VAR_HOST}"
           if [[ -z "$host" ]]; then
-            echo "::error::Missing host. Set workflow input host or repository variable AI_GATEWAY_HOST."
+            echo "::error::缺少目标服务器地址。请填写 workflow 输入 host，或配置仓库变量 AI_GATEWAY_HOST。"
             exit 1
           fi
 
           if [[ -z "$SSH_PRIVATE_KEY" ]]; then
-            echo "::error::Missing secret AI_GATEWAY_SSH_PRIVATE_KEY."
+            echo "::error::缺少 Secret AI_GATEWAY_SSH_PRIVATE_KEY。"
             exit 1
           fi
 
@@ -98,9 +98,9 @@ jobs:
             StrictHostKeyChecking accept-new
           EOF
 
-          ssh -F ~/.ssh/config -o BatchMode=yes ai-gateway-target 'echo "SSH connection OK"'
+          ssh -F ~/.ssh/config -o BatchMode=yes ai-gateway-target 'echo "SSH 连接正常"'
 
-      - name: Deploy selected gateway
+      - name: 部署所选网关
         env:
           GATEWAY: ${{ inputs.gateway }}
           SSH_USER: ${{ inputs.ssh_user }}
@@ -123,7 +123,7 @@ jobs:
               default_public_port="3000"
               ;;
             *)
-              echo "::error::Unsupported gateway: $GATEWAY"
+              echo "::error::不支持的网关方案: $GATEWAY"
               exit 1
               ;;
           esac
