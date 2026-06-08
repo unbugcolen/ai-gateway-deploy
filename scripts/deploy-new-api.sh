@@ -85,7 +85,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 gateway_dir="$(cd "${script_dir}/.." && pwd)"
 bundle_dir="${gateway_dir}/new-api"
 
-if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/.env.example" || ! -f "${bundle_dir}/docker-compose.bundled.yml" ]]; then
+if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/.env.example" || ! -f "${bundle_dir}/.env.bundled.example" || ! -f "${bundle_dir}/docker-compose.bundled.yml" ]]; then
   echo "Deployment bundle is incomplete: ${bundle_dir}" >&2
   exit 1
 fi
@@ -109,6 +109,7 @@ rsync -az \
   "${bundle_dir}/docker-compose.yml" \
   "${bundle_dir}/docker-compose.bundled.yml" \
   "${bundle_dir}/.env.example" \
+  "${bundle_dir}/.env.bundled.example" \
   "${ssh_target}:${remote_path}/"
 
 echo "==> Installing Docker if needed and starting services"
@@ -156,25 +157,48 @@ get_env_value() {
   awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' .env 2>/dev/null || true
 }
 
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    printf '\n%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+
 is_placeholder_value() {
   local value="$1"
   [[ -z "$value" || "$value" == *"CHANGE_ME"* || "$value" == *"example.internal"* || "$value" == *"YOUR_SERVER_IP"* ]]
 }
 
 if [[ ! -f .env ]]; then
-  cp .env.example .env
+  if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+    cp .env.bundled.example .env
+  else
+    cp .env.example .env
+  fi
   postgres_password="$(random_hex)"
   session_secret="$(random_hex)"
   crypto_secret="$(random_hex)"
 
-  sed -i "s|^PUBLIC_PORT=.*|PUBLIC_PORT=${PUBLIC_PORT}|" .env
-  sed -i "s|^FRONTEND_BASE_URL=.*|FRONTEND_BASE_URL=${FRONTEND_URL}|" .env
-  sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${postgres_password}|" .env
-  sed -i "s|^SESSION_SECRET=.*|SESSION_SECRET=${session_secret}|" .env
-  sed -i "s|^CRYPTO_SECRET=.*|CRYPTO_SECRET=${crypto_secret}|" .env
+  set_env_value "PUBLIC_PORT" "${PUBLIC_PORT}"
+  set_env_value "FRONTEND_BASE_URL" "${FRONTEND_URL}"
+  if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+    set_env_value "POSTGRES_PASSWORD" "${postgres_password}"
+  fi
+  set_env_value "SESSION_SECRET" "${session_secret}"
+  set_env_value "CRYPTO_SECRET" "${crypto_secret}"
   chmod 600 .env
 else
   echo "Existing .env found; keeping current secrets and settings."
+fi
+
+if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+  postgres_password="$(get_env_value POSTGRES_PASSWORD)"
+  if is_placeholder_value "$postgres_password"; then
+    set_env_value "POSTGRES_PASSWORD" "$(random_hex)"
+  fi
 fi
 
 compose_files=(-f docker-compose.yml)

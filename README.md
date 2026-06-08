@@ -64,11 +64,13 @@ ai-gateway-deploy/
 │   ├── docker-compose.yml
 │   ├── docker-compose.bundled.yml
 │   ├── .env.example
+│   ├── .env.bundled.example
 │   └── config.yaml
 ├── new-api/
 │   ├── docker-compose.yml
 │   ├── docker-compose.bundled.yml
-│   └── .env.example
+│   ├── .env.example
+│   └── .env.bundled.example
 └── scripts/
     ├── deploy-litellm.sh
     └── deploy-new-api.sh
@@ -106,7 +108,7 @@ chmod +x scripts/deploy-litellm.sh
   --with-bundled-deps
 ```
 
-脚本会在远端创建 `/opt/ai-gateway/litellm`，上传 `docker-compose.yml`、`docker-compose.bundled.yml`、`.env.example`、`config.yaml`，自动生成 `LITELLM_MASTER_KEY`、`LITELLM_SALT_KEY` 和本地/测试用 PostgreSQL 密码。
+脚本会在远端创建 `/opt/ai-gateway/litellm`，上传 `docker-compose.yml`、`docker-compose.bundled.yml`、`.env.example`、`.env.bundled.example`、`config.yaml`。生产模式用 `.env.example` 生成 `.env`；`--with-bundled-deps` 模式用 `.env.bundled.example` 生成 `.env`，并自动生成 `LITELLM_MASTER_KEY`、`LITELLM_SALT_KEY` 和本地/测试用 PostgreSQL 密码。
 
 ### 配置外部数据库
 
@@ -232,7 +234,7 @@ chmod +x scripts/deploy-new-api.sh
   --with-bundled-deps
 ```
 
-脚本会在远端创建 `/opt/ai-gateway/new-api`，上传 `docker-compose.yml`、`docker-compose.bundled.yml` 和 `.env.example`，自动生成 New API 加密密钥和本地/测试用 PostgreSQL 密码。
+脚本会在远端创建 `/opt/ai-gateway/new-api`，上传 `docker-compose.yml`、`docker-compose.bundled.yml`、`.env.example` 和 `.env.bundled.example`。生产模式用 `.env.example` 生成 `.env`；`--with-bundled-deps` 模式用 `.env.bundled.example` 生成 `.env`，并自动生成 New API 加密密钥和本地/测试用 PostgreSQL 密码。
 
 ### 配置外部数据库和 Redis
 
@@ -304,6 +306,7 @@ docker compose up -d
 LiteLLM 本地/测试随附数据库模式：
 
 ```bash
+cp .env.bundled.example .env
 docker compose -f docker-compose.yml -f docker-compose.bundled.yml up -d
 ```
 
@@ -321,6 +324,7 @@ docker compose up -d
 New API 本地/测试随附数据库和 Redis 模式：
 
 ```bash
+cp .env.bundled.example .env
 docker compose -f docker-compose.yml -f docker-compose.bundled.yml up -d
 ```
 

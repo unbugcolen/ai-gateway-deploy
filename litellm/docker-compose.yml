@@ -17,11 +17,8 @@ services:
       # 路由和模型策略保存在 git 中，并以只读方式挂载到容器。
       - ./config.yaml:/app/config.yaml:ro
     environment:
-      # 从 .env 读取 PostgreSQL 连接串，并传入 LiteLLM 容器。
-      # 生产环境应在 .env 中配置外部数据库服务。
-      DATABASE_URL: "${DATABASE_URL}"
-
       # LiteLLM 管理/root 密钥和凭据加密盐值。
+      # DATABASE_URL 等连接串直接由 env_file: .env 传入容器。
       LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
       LITELLM_SALT_KEY: "${LITELLM_SALT_KEY}"
 

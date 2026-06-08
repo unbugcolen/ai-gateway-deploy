@@ -75,7 +75,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 gateway_dir="$(cd "${script_dir}/.." && pwd)"
 bundle_dir="${gateway_dir}/litellm"
 
-if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/docker-compose.bundled.yml" || ! -f "${bundle_dir}/.env.example" || ! -f "${bundle_dir}/config.yaml" ]]; then
+if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/docker-compose.bundled.yml" || ! -f "${bundle_dir}/.env.example" || ! -f "${bundle_dir}/.env.bundled.example" || ! -f "${bundle_dir}/config.yaml" ]]; then
   echo "Deployment bundle is incomplete: ${bundle_dir}" >&2
   exit 1
 fi
@@ -99,6 +99,7 @@ rsync -az \
   "${bundle_dir}/docker-compose.yml" \
   "${bundle_dir}/docker-compose.bundled.yml" \
   "${bundle_dir}/.env.example" \
+  "${bundle_dir}/.env.bundled.example" \
   "${bundle_dir}/config.yaml" \
   "${ssh_target}:${remote_path}/"
 
@@ -147,24 +148,47 @@ get_env_value() {
   awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' .env 2>/dev/null || true
 }
 
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    printf '\n%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+
 is_placeholder_value() {
   local value="$1"
   [[ -z "$value" || "$value" == *"CHANGE_ME"* || "$value" == *"example.internal"* ]]
 }
 
 if [[ ! -f .env ]]; then
-  cp .env.example .env
+  if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+    cp .env.bundled.example .env
+  else
+    cp .env.example .env
+  fi
   postgres_password="$(random_hex)"
   master_key="sk-$(random_hex)"
   salt_key="sk-$(random_hex)"
 
-  sed -i "s|^PUBLIC_PORT=.*|PUBLIC_PORT=${PUBLIC_PORT}|" .env
-  sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${postgres_password}|" .env
-  sed -i "s|^LITELLM_MASTER_KEY=.*|LITELLM_MASTER_KEY=${master_key}|" .env
-  sed -i "s|^LITELLM_SALT_KEY=.*|LITELLM_SALT_KEY=${salt_key}|" .env
+  set_env_value "PUBLIC_PORT" "${PUBLIC_PORT}"
+  if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+    set_env_value "POSTGRES_PASSWORD" "${postgres_password}"
+  fi
+  set_env_value "LITELLM_MASTER_KEY" "${master_key}"
+  set_env_value "LITELLM_SALT_KEY" "${salt_key}"
   chmod 600 .env
 else
   echo "Existing .env found; keeping current secrets and provider keys."
+fi
+
+if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+  postgres_password="$(get_env_value POSTGRES_PASSWORD)"
+  if is_placeholder_value "$postgres_password"; then
+    set_env_value "POSTGRES_PASSWORD" "$(random_hex)"
+  fi
 fi
 
 compose_files=(-f docker-compose.yml)

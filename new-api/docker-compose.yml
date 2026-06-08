@@ -21,15 +21,8 @@ services:
       - new_api_data:/data
       - new_api_logs:/app/logs
     environment:
-      # 从 .env 读取 PostgreSQL 连接串，并传入 New API 容器。
-      # 生产环境应在 .env 中配置外部数据库服务。
-      SQL_DSN: "${SQL_DSN}"
-
-      # 从 .env 读取 Redis 连接串，并传入 New API 容器。
-      # 生产环境应在 .env 中配置外部 Redis 服务。
-      REDIS_CONN_STRING: "${REDIS_CONN_STRING}"
-
       # 运行时行为和团队默认策略。
+      # SQL_DSN、REDIS_CONN_STRING 等连接串直接由 env_file: .env 传入容器。
       TZ: "${TZ:-Asia/Shanghai}"
       SESSION_SECRET: "${SESSION_SECRET}"
       CRYPTO_SECRET: "${CRYPTO_SECRET}"
