@@ -12,7 +12,6 @@ Options:
   --ssh-port <value>      SSH port. Default: 22
   --path <value>          Remote install path. Default: /opt/ai-gateway/litellm
   --public-port <value>   Host port exposed by LiteLLM. Default: 4000
-  --with-bundled-deps     Also deploy bundled PostgreSQL. Use only for local/test.
   -h, --help              Show help.
 
 Example:
@@ -25,7 +24,6 @@ ssh_user="root"
 ssh_port="22"
 remote_path="/opt/ai-gateway/litellm"
 public_port="4000"
-with_bundled_deps="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,10 +47,6 @@ while [[ $# -gt 0 ]]; do
       public_port="${2:-}"
       shift 2
       ;;
-    --with-bundled-deps)
-      with_bundled_deps="true"
-      shift
-      ;;
     -h|--help)
       usage
       exit 0
@@ -75,7 +69,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 gateway_dir="$(cd "${script_dir}/.." && pwd)"
 bundle_dir="${gateway_dir}/litellm"
 
-if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/docker-compose.bundled.yml" || ! -f "${bundle_dir}/.env.example" || ! -f "${bundle_dir}/.env.bundled.example" || ! -f "${bundle_dir}/config.yaml" ]]; then
+if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/.env.example" || ! -f "${bundle_dir}/config.yaml" ]]; then
   echo "Deployment bundle is incomplete: ${bundle_dir}" >&2
   exit 1
 fi
@@ -97,15 +91,13 @@ echo "==> Uploading LiteLLM deployment bundle"
 rsync -az \
   -e "ssh -p ${ssh_port} -o StrictHostKeyChecking=accept-new" \
   "${bundle_dir}/docker-compose.yml" \
-  "${bundle_dir}/docker-compose.bundled.yml" \
   "${bundle_dir}/.env.example" \
-  "${bundle_dir}/.env.bundled.example" \
   "${bundle_dir}/config.yaml" \
   "${ssh_target}:${remote_path}/"
 
 echo "==> Installing Docker if needed and starting services"
 ssh "${ssh_opts[@]}" "$ssh_target" \
-  "REMOTE_PATH='$remote_path' PUBLIC_PORT='$public_port' WITH_BUNDLED_DEPS='$with_bundled_deps' bash -s" <<'REMOTE'
+  "REMOTE_PATH='$remote_path' PUBLIC_PORT='$public_port' bash -s" <<'REMOTE'
 set -euo pipefail
 
 cd "$REMOTE_PATH"
@@ -164,19 +156,11 @@ is_placeholder_value() {
 }
 
 if [[ ! -f .env ]]; then
-  if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
-    cp .env.bundled.example .env
-  else
-    cp .env.example .env
-  fi
-  postgres_password="$(random_hex)"
+  cp .env.example .env
   master_key="sk-$(random_hex)"
   salt_key="sk-$(random_hex)"
 
   set_env_value "PUBLIC_PORT" "${PUBLIC_PORT}"
-  if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
-    set_env_value "POSTGRES_PASSWORD" "${postgres_password}"
-  fi
   set_env_value "LITELLM_MASTER_KEY" "${master_key}"
   set_env_value "LITELLM_SALT_KEY" "${salt_key}"
   chmod 600 .env
@@ -184,28 +168,15 @@ else
   echo "Existing .env found; keeping current secrets and provider keys."
 fi
 
-if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
-  postgres_password="$(get_env_value POSTGRES_PASSWORD)"
-  if is_placeholder_value "$postgres_password"; then
-    set_env_value "POSTGRES_PASSWORD" "$(random_hex)"
-  fi
+database_url="$(get_env_value DATABASE_URL)"
+if is_placeholder_value "$database_url"; then
+  echo "Deployment requires a real DATABASE_URL in ${REMOTE_PATH}/.env." >&2
+  echo "Edit the remote .env with a PostgreSQL endpoint, then rerun this deploy script." >&2
+  exit 1
 fi
 
-compose_files=(-f docker-compose.yml)
-if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
-  compose_files+=(-f docker-compose.bundled.yml)
-else
-  database_url="$(get_env_value DATABASE_URL)"
-  if is_placeholder_value "$database_url"; then
-    echo "External dependency mode requires a real DATABASE_URL in ${REMOTE_PATH}/.env." >&2
-    echo "Edit the remote .env with an ops-managed PostgreSQL endpoint, then rerun this deploy script." >&2
-    echo "For local/test only, rerun with --with-bundled-deps to start bundled PostgreSQL." >&2
-    exit 1
-  fi
-fi
-
-docker compose "${compose_files[@]}" pull
-docker compose "${compose_files[@]}" up -d
+docker compose pull
+docker compose up -d
 
 echo "==> Waiting for LiteLLM endpoint"
 for _ in $(seq 1 40); do
@@ -215,7 +186,7 @@ for _ in $(seq 1 40); do
   sleep 3
 done
 
-docker compose "${compose_files[@]}" ps
+docker compose ps
 REMOTE
 
 echo
@@ -223,6 +194,5 @@ echo "Deployed LiteLLM gateway."
 echo "API URL: http://${host}:${public_port}"
 echo "UI URL:  http://${host}:${public_port}/ui"
 echo "Remote path: ${ssh_target}:${remote_path}"
-echo "Bundled dependencies: ${with_bundled_deps}"
 echo
 echo "Edit remote .env with provider keys, then run: cd ${remote_path} && docker compose up -d"

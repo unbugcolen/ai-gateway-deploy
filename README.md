@@ -62,15 +62,11 @@ ai-gateway-deploy/
 ├── README.md
 ├── litellm/
 │   ├── docker-compose.yml
-│   ├── docker-compose.bundled.yml
 │   ├── .env.example
-│   ├── .env.bundled.example
 │   └── config.yaml
 ├── new-api/
 │   ├── docker-compose.yml
-│   ├── docker-compose.bundled.yml
-│   ├── .env.example
-│   └── .env.bundled.example
+│   └── .env.example
 └── scripts/
     ├── deploy-litellm.sh
     └── deploy-new-api.sh
@@ -99,16 +95,7 @@ chmod +x scripts/deploy-litellm.sh
   --public-port 4000
 ```
 
-本地/测试环境如果希望随容器一起启动 PostgreSQL，可加：
-
-```bash
-./scripts/deploy-litellm.sh \
-  --host 203.0.113.10 \
-  --user root \
-  --with-bundled-deps
-```
-
-脚本会在远端创建 `/opt/ai-gateway/litellm`，上传 `docker-compose.yml`、`docker-compose.bundled.yml`、`.env.example`、`.env.bundled.example`、`config.yaml`。生产模式用 `.env.example` 生成 `.env`；`--with-bundled-deps` 模式用 `.env.bundled.example` 生成 `.env`，并自动生成 `LITELLM_MASTER_KEY`、`LITELLM_SALT_KEY` 和本地/测试用 PostgreSQL 密码。
+脚本会在远端创建 `/opt/ai-gateway/litellm`，上传 `docker-compose.yml`、`.env.example` 和 `config.yaml`。首次部署时会用 `.env.example` 生成 `.env`，并自动生成 `LITELLM_MASTER_KEY`、`LITELLM_SALT_KEY`；运维需要在 `.env` 中填写真实的外部 PostgreSQL 连接串。
 
 ### 配置外部数据库
 
@@ -127,6 +114,27 @@ DATABASE_URL=postgresql://litellm:password@postgres.example.internal:5432/litell
 ```
 
 修改后重新部署或启动：
+
+```bash
+docker compose up -d
+```
+
+### 本地启动
+
+如果本机已经启动 PostgreSQL，容器内不能用 `localhost` 访问宿主机数据库，需要使用 Docker Desktop 提供的 `host.docker.internal`：
+
+```bash
+cd litellm
+cp .env.example .env
+```
+
+修改 `.env`：
+
+```text
+DATABASE_URL=postgresql://litellm:password@host.docker.internal:5432/litellm
+```
+
+启动：
 
 ```bash
 docker compose up -d
@@ -225,16 +233,7 @@ chmod +x scripts/deploy-new-api.sh
   --frontend-url https://api.example.com
 ```
 
-本地/测试环境如果希望随容器一起启动 PostgreSQL/Redis，可加：
-
-```bash
-./scripts/deploy-new-api.sh \
-  --host 203.0.113.10 \
-  --user root \
-  --with-bundled-deps
-```
-
-脚本会在远端创建 `/opt/ai-gateway/new-api`，上传 `docker-compose.yml`、`docker-compose.bundled.yml`、`.env.example` 和 `.env.bundled.example`。生产模式用 `.env.example` 生成 `.env`；`--with-bundled-deps` 模式用 `.env.bundled.example` 生成 `.env`，并自动生成 New API 加密密钥和本地/测试用 PostgreSQL 密码。
+脚本会在远端创建 `/opt/ai-gateway/new-api`，上传 `docker-compose.yml` 和 `.env.example`。首次部署时会用 `.env.example` 生成 `.env`，并自动生成 New API 加密密钥；运维需要在 `.env` 中填写真实的外部 PostgreSQL/Redis 连接串。
 
 ### 配置外部数据库和 Redis
 
@@ -254,6 +253,34 @@ REDIS_CONN_STRING=redis://:password@redis.example.internal:6379/0
 ```
 
 修改后重新部署或启动：
+
+```bash
+docker compose up -d
+```
+
+### 本地启动
+
+如果本机已经启动 PostgreSQL 和 Redis，容器内不能用 `localhost` 访问宿主机服务，需要使用 Docker Desktop 提供的 `host.docker.internal`：
+
+```bash
+cd new-api
+cp .env.example .env
+```
+
+修改 `.env`：
+
+```text
+SQL_DSN=postgresql://newapi:password@host.docker.internal:5432/newapi
+REDIS_CONN_STRING=redis://host.docker.internal:6379/0
+```
+
+如果本机 Redis 有密码：
+
+```text
+REDIS_CONN_STRING=redis://:password@host.docker.internal:6379/0
+```
+
+启动：
 
 ```bash
 docker compose up -d
@@ -303,13 +330,6 @@ docker compose pull
 docker compose up -d
 ```
 
-LiteLLM 本地/测试随附数据库模式：
-
-```bash
-cp .env.bundled.example .env
-docker compose -f docker-compose.yml -f docker-compose.bundled.yml up -d
-```
-
 New API：
 
 ```bash
@@ -319,22 +339,6 @@ docker compose ps
 docker compose logs -f new-api
 docker compose pull
 docker compose up -d
-```
-
-New API 本地/测试随附数据库和 Redis 模式：
-
-```bash
-cp .env.bundled.example .env
-docker compose -f docker-compose.yml -f docker-compose.bundled.yml up -d
-```
-
-备份随附 Postgres volume：
-
-```bash
-docker run --rm \
-  -v "$(basename "$PWD")_postgres_data:/from:ro" \
-  -v "$PWD/backup:/to" \
-  alpine tar czf /to/postgres-data-$(date +%F).tgz -C /from .
 ```
 
 ## GitHub Actions 部署
@@ -377,7 +381,6 @@ AI_GATEWAY_HOST
    - `remote_path`: 为空时使用默认路径
    - `public_port`: 为空时使用默认端口
    - `frontend_url`: 仅 New API 需要，绑定域名/HTTPS 时填写
-   - `with_bundled_deps`: 是否同时部署随附数据库/缓存；生产环境建议保持 `false`
 
 默认部署路径：
 
@@ -388,7 +391,7 @@ AI_GATEWAY_HOST
 
 ### 流水线部署后的人工配置
 
-流水线只上传部署模板并启动容器，不会把供应商 API key 写进仓库。默认生产模式要求远端 `.env` 已配置外部数据库/Redis 连接串；如果还是占位符，部署脚本会停止，避免误用随附依赖。
+流水线只上传部署模板并启动容器，不会把供应商 API key 写进仓库。部署要求远端 `.env` 已配置外部数据库/Redis 连接串；如果还是占位符，部署脚本会停止，避免带着错误依赖启动。
 
 LiteLLM：
 
