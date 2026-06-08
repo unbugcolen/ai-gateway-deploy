@@ -178,7 +178,7 @@ http://<固定IP>:4000/ui
 - `rpm_limit`
 - `tpm_limit`
 - 可访问模型列表
-- `tags`，用于成本归因
+- 清晰的 key 名称或用途说明，用于区分成员、项目和成本归因
 
 ### Claude Code 使用
 

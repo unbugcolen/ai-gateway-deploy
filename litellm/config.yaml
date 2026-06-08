@@ -73,17 +73,6 @@ litellm_settings:
     # 每分钟 token 数限制。
     tpm_limit: 200000
 
-  # key 创建策略。
-  key_generation_settings:
-    # 只有团队管理员可以创建团队 key，并且必须填写 tags 用于成本归因。
-    team_key_generation:
-      allowed_team_member_roles: ["admin"]
-      required_params: ["tags"]
-
-    # 只有代理管理员可以创建个人 key。
-    personal_key_generation:
-      allowed_user_roles: ["proxy_admin"]
-
 general_settings:
   # 管理 API/UI 的 root key，从远端 .env 读取。
   master_key: os.environ/LITELLM_MASTER_KEY
