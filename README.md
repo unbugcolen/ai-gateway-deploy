@@ -62,10 +62,12 @@ ai-gateway-deploy/
 ├── README.md
 ├── litellm/
 │   ├── docker-compose.yml
+│   ├── docker-compose.bundled.yml
 │   ├── .env.example
 │   └── config.yaml
 ├── new-api/
 │   ├── docker-compose.yml
+│   ├── docker-compose.bundled.yml
 │   └── .env.example
 └── scripts/
     ├── deploy-litellm.sh
@@ -77,6 +79,8 @@ ai-gateway-deploy/
 适合：团队长期统一入口、项目预算、成员 token、fallback、可观测和工程化治理。
 
 ### 部署
+
+默认部署模式只启动 LiteLLM 应用容器，PostgreSQL 使用外部服务。首次部署后，脚本会在远端生成 `.env`；如果 `DATABASE_URL` 仍是占位符，脚本会停止并提示运维先填入外部数据库连接串。
 
 ```bash
 cd /Users/colen/code/project/mindMatrix/ai-gateway-deploy
@@ -93,7 +97,38 @@ chmod +x scripts/deploy-litellm.sh
   --public-port 4000
 ```
 
-脚本会在远端创建 `/opt/ai-gateway/litellm`，上传 `docker-compose.yml`、`.env.example`、`config.yaml`，自动生成 Postgres 密码、`LITELLM_MASTER_KEY`、`LITELLM_SALT_KEY`，然后执行 `docker compose pull && docker compose up -d`。
+本地/测试环境如果希望随容器一起启动 PostgreSQL，可加：
+
+```bash
+./scripts/deploy-litellm.sh \
+  --host 203.0.113.10 \
+  --user root \
+  --with-bundled-deps
+```
+
+脚本会在远端创建 `/opt/ai-gateway/litellm`，上传 `docker-compose.yml`、`docker-compose.bundled.yml`、`.env.example`、`config.yaml`，自动生成 `LITELLM_MASTER_KEY`、`LITELLM_SALT_KEY` 和本地/测试用 PostgreSQL 密码。
+
+### 配置外部数据库
+
+生产环境在远端 `.env` 中配置外部 PostgreSQL：
+
+```bash
+ssh root@<固定IP>
+cd /opt/ai-gateway/litellm
+vim .env
+```
+
+重点修改：
+
+```text
+DATABASE_URL=postgresql://litellm:password@postgres.example.internal:5432/litellm
+```
+
+修改后重新部署或启动：
+
+```bash
+docker compose up -d
+```
 
 ### 配置供应商 key
 
@@ -162,6 +197,8 @@ export OPENAI_API_KEY=sk-成员或项目的-litellm-virtual-key
 
 ### 部署
 
+默认部署模式只启动 New API 应用容器，PostgreSQL/Redis 使用外部服务。首次部署后，脚本会在远端生成 `.env`；如果 `SQL_DSN` 或 `REDIS_CONN_STRING` 仍是占位符，脚本会停止并提示运维先填入外部连接串。
+
 ```bash
 cd /Users/colen/code/project/mindMatrix/ai-gateway-deploy
 chmod +x scripts/deploy-new-api.sh
@@ -186,7 +223,39 @@ chmod +x scripts/deploy-new-api.sh
   --frontend-url https://api.example.com
 ```
 
-脚本会在远端创建 `/opt/ai-gateway/new-api`，上传 `docker-compose.yml` 和 `.env.example`，自动生成 `.env` 里的数据库密码与 New API 加密密钥，然后执行 `docker compose pull && docker compose up -d`。
+本地/测试环境如果希望随容器一起启动 PostgreSQL/Redis，可加：
+
+```bash
+./scripts/deploy-new-api.sh \
+  --host 203.0.113.10 \
+  --user root \
+  --with-bundled-deps
+```
+
+脚本会在远端创建 `/opt/ai-gateway/new-api`，上传 `docker-compose.yml`、`docker-compose.bundled.yml` 和 `.env.example`，自动生成 New API 加密密钥和本地/测试用 PostgreSQL 密码。
+
+### 配置外部数据库和 Redis
+
+生产环境在远端 `.env` 中配置外部 PostgreSQL/Redis：
+
+```bash
+ssh root@<固定IP>
+cd /opt/ai-gateway/new-api
+vim .env
+```
+
+重点修改：
+
+```text
+SQL_DSN=postgresql://newapi:password@postgres.example.internal:5432/newapi
+REDIS_CONN_STRING=redis://:password@redis.example.internal:6379/0
+```
+
+修改后重新部署或启动：
+
+```bash
+docker compose up -d
+```
 
 ### 初始化后台
 
@@ -232,6 +301,12 @@ docker compose pull
 docker compose up -d
 ```
 
+LiteLLM 本地/测试随附数据库模式：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.bundled.yml up -d
+```
+
 New API：
 
 ```bash
@@ -243,7 +318,13 @@ docker compose pull
 docker compose up -d
 ```
 
-备份 Postgres volume：
+New API 本地/测试随附数据库和 Redis 模式：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.bundled.yml up -d
+```
+
+备份随附 Postgres volume：
 
 ```bash
 docker run --rm \
@@ -292,6 +373,7 @@ AI_GATEWAY_HOST
    - `remote_path`: 为空时使用默认路径
    - `public_port`: 为空时使用默认端口
    - `frontend_url`: 仅 New API 需要，绑定域名/HTTPS 时填写
+   - `with_bundled_deps`: 是否同时部署随附数据库/缓存；生产环境建议保持 `false`
 
 默认部署路径：
 
@@ -302,7 +384,7 @@ AI_GATEWAY_HOST
 
 ### 流水线部署后的人工配置
 
-流水线只上传部署模板并启动容器，不会把供应商 API key 写进仓库。
+流水线只上传部署模板并启动容器，不会把供应商 API key 写进仓库。默认生产模式要求远端 `.env` 已配置外部数据库/Redis 连接串；如果还是占位符，部署脚本会停止，避免误用随附依赖。
 
 LiteLLM：
 
@@ -318,7 +400,8 @@ New API：
 ```bash
 ssh root@<固定IP>
 cd /opt/ai-gateway/new-api
-docker compose ps
+vim .env
+docker compose up -d
 ```
 
 New API 的供应商 key 建议在后台“渠道管理”里录入。

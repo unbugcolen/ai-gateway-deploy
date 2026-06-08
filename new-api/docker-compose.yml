@@ -21,11 +21,11 @@ services:
       - new_api_data:/data
       - new_api_logs:/app/logs
     environment:
-      # 内部 PostgreSQL 连接串，连接下方 postgres 服务。
-      SQL_DSN: "postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-newapi}"
+      # PostgreSQL 连接串。生产环境指向外部数据库服务。
+      SQL_DSN: "${SQL_DSN}"
 
-      # 内部 Redis 连接，用于缓存/队列能力。
-      REDIS_CONN_STRING: "redis://redis:6379"
+      # Redis 连接串。生产环境指向外部 Redis 服务。
+      REDIS_CONN_STRING: "${REDIS_CONN_STRING}"
 
       # 运行时行为和团队默认策略。
       TZ: "${TZ:-Asia/Shanghai}"
@@ -41,13 +41,6 @@ services:
       GLOBAL_API_RATE_LIMIT_DURATION: "${GLOBAL_API_RATE_LIMIT_DURATION:-180}"
       STREAMING_TIMEOUT: "${STREAMING_TIMEOUT:-300}"
       CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED: "${CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED:-true}"
-    depends_on:
-      postgres:
-        # 等待 PostgreSQL 就绪后再启动 New API。
-        condition: service_healthy
-      redis:
-        # 等待 Redis 就绪后再启动 New API。
-        condition: service_healthy
     healthcheck:
       test:
         [
@@ -59,42 +52,7 @@ services:
       retries: 5
       start_period: 30s
 
-  postgres:
-    # 持久化 New API 用户、token、渠道、额度和日志的数据库。
-    image: postgres:15-alpine
-    container_name: ai-gateway-postgres
-    restart: always
-    environment:
-      POSTGRES_USER: "${POSTGRES_USER:-newapi}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-      POSTGRES_DB: "${POSTGRES_DB:-newapi}"
-    volumes:
-      # 使用 Docker named volume，容器升级后数据仍保留。
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newapi} -d ${POSTGRES_DB:-newapi}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    # New API 使用的 Redis 缓存/队列后端。
-    image: redis:7-alpine
-    container_name: ai-gateway-redis
-    restart: always
-    # 开启 AOF 持久化，降低重启导致的数据丢失风险。
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
 volumes:
-  # Docker 管理的数据卷。执行破坏性维护前先备份 postgres_data。
+  # Docker 管理的数据卷，仅保存 New API 本地文件与日志。
   new_api_data:
   new_api_logs:
-  postgres_data:
-  redis_data:

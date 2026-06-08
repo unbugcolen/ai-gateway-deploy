@@ -1,0 +1,31 @@
+services:
+  litellm:
+    environment:
+      # 本地/测试模式连接随附 PostgreSQL。
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-litellm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-litellm}"
+    depends_on:
+      postgres:
+        # 等待 PostgreSQL 就绪后再启动 LiteLLM。
+        condition: service_healthy
+
+  postgres:
+    # 本地/测试用 PostgreSQL。生产环境建议使用外部数据库服务。
+    image: postgres:16-alpine
+    container_name: ai-gateway-litellm-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-litellm}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-litellm}"
+    volumes:
+      # 使用 Docker named volume，容器升级后数据仍保留。
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-litellm} -d ${POSTGRES_DB:-litellm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  # 本地/测试模式下的随附依赖数据卷。
+  postgres_data:

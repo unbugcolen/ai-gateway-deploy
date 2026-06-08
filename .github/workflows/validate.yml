@@ -30,16 +30,20 @@ jobs:
         run: |
           set -euo pipefail
           tmpdir="$(mktemp -d)"
-          cp litellm/docker-compose.yml litellm/.env.example litellm/config.yaml "$tmpdir/"
+          cp litellm/docker-compose.yml litellm/docker-compose.bundled.yml litellm/.env.example litellm/config.yaml "$tmpdir/"
           mv "$tmpdir/.env.example" "$tmpdir/.env"
           sed -i 's/CHANGE_ME_GENERATED_BY_DEPLOY_SCRIPT/local-test-secret/g' "$tmpdir/.env"
-          docker compose --project-directory "$tmpdir" config >/tmp/litellm-compose.yaml
+          sed -i 's|postgres.example.internal|127.0.0.1|g' "$tmpdir/.env"
+          docker compose --project-directory "$tmpdir" config >/tmp/litellm-external-compose.yaml
+          docker compose --project-directory "$tmpdir" -f "$tmpdir/docker-compose.yml" -f "$tmpdir/docker-compose.bundled.yml" config >/tmp/litellm-bundled-compose.yaml
 
       - name: 校验 New API Compose
         run: |
           set -euo pipefail
           tmpdir="$(mktemp -d)"
-          cp new-api/docker-compose.yml new-api/.env.example "$tmpdir/"
+          cp new-api/docker-compose.yml new-api/docker-compose.bundled.yml new-api/.env.example "$tmpdir/"
           mv "$tmpdir/.env.example" "$tmpdir/.env"
           sed -i 's/CHANGE_ME_GENERATED_BY_DEPLOY_SCRIPT/local-test-secret/g; s/YOUR_SERVER_IP/127.0.0.1/g' "$tmpdir/.env"
-          docker compose --project-directory "$tmpdir" config >/tmp/new-api-compose.yaml
+          sed -i 's|postgres.example.internal|127.0.0.1|g; s|redis.example.internal|127.0.0.1|g' "$tmpdir/.env"
+          docker compose --project-directory "$tmpdir" config >/tmp/new-api-external-compose.yaml
+          docker compose --project-directory "$tmpdir" -f "$tmpdir/docker-compose.yml" -f "$tmpdir/docker-compose.bundled.yml" config >/tmp/new-api-bundled-compose.yaml

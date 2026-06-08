@@ -13,6 +13,7 @@ Options:
   --path <value>          Remote install path. Default: /opt/ai-gateway/new-api
   --public-port <value>   Host port exposed by New API. Default: 3000
   --frontend-url <value>  Public URL shown to New API. Default: http://<host>:<public-port>
+  --with-bundled-deps     Also deploy bundled PostgreSQL and Redis. Use only for local/test.
   -h, --help              Show help.
 
 Example:
@@ -26,6 +27,7 @@ ssh_port="22"
 remote_path="/opt/ai-gateway/new-api"
 public_port="3000"
 frontend_url=""
+with_bundled_deps="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,6 +55,10 @@ while [[ $# -gt 0 ]]; do
       frontend_url="${2:-}"
       shift 2
       ;;
+    --with-bundled-deps)
+      with_bundled_deps="true"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -79,7 +85,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 gateway_dir="$(cd "${script_dir}/.." && pwd)"
 bundle_dir="${gateway_dir}/new-api"
 
-if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/.env.example" ]]; then
+if [[ ! -f "${bundle_dir}/docker-compose.yml" || ! -f "${bundle_dir}/.env.example" || ! -f "${bundle_dir}/docker-compose.bundled.yml" ]]; then
   echo "Deployment bundle is incomplete: ${bundle_dir}" >&2
   exit 1
 fi
@@ -101,12 +107,13 @@ echo "==> Uploading New API deployment bundle"
 rsync -az \
   -e "ssh -p ${ssh_port} -o StrictHostKeyChecking=accept-new" \
   "${bundle_dir}/docker-compose.yml" \
+  "${bundle_dir}/docker-compose.bundled.yml" \
   "${bundle_dir}/.env.example" \
   "${ssh_target}:${remote_path}/"
 
 echo "==> Installing Docker if needed and starting services"
 ssh "${ssh_opts[@]}" "$ssh_target" \
-  "REMOTE_PATH='$remote_path' PUBLIC_PORT='$public_port' FRONTEND_URL='$frontend_url' bash -s" <<'REMOTE'
+  "REMOTE_PATH='$remote_path' PUBLIC_PORT='$public_port' FRONTEND_URL='$frontend_url' WITH_BUNDLED_DEPS='$with_bundled_deps' bash -s" <<'REMOTE'
 set -euo pipefail
 
 cd "$REMOTE_PATH"
@@ -144,6 +151,16 @@ install_docker() {
 
 install_docker
 
+get_env_value() {
+  local key="$1"
+  awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' .env 2>/dev/null || true
+}
+
+is_placeholder_value() {
+  local value="$1"
+  [[ -z "$value" || "$value" == *"CHANGE_ME"* || "$value" == *"example.internal"* || "$value" == *"YOUR_SERVER_IP"* ]]
+}
+
 if [[ ! -f .env ]]; then
   cp .env.example .env
   postgres_password="$(random_hex)"
@@ -160,23 +177,38 @@ else
   echo "Existing .env found; keeping current secrets and settings."
 fi
 
-docker compose pull
-docker compose up -d
+compose_files=(-f docker-compose.yml)
+if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+  compose_files+=(-f docker-compose.bundled.yml)
+else
+  sql_dsn="$(get_env_value SQL_DSN)"
+  redis_conn_string="$(get_env_value REDIS_CONN_STRING)"
+  if is_placeholder_value "$sql_dsn" || is_placeholder_value "$redis_conn_string"; then
+    echo "External dependency mode requires real SQL_DSN and REDIS_CONN_STRING in ${REMOTE_PATH}/.env." >&2
+    echo "Edit the remote .env with ops-managed PostgreSQL/Redis endpoints, then rerun this deploy script." >&2
+    echo "For local/test only, rerun with --with-bundled-deps to start bundled PostgreSQL and Redis." >&2
+    exit 1
+  fi
+fi
+
+docker compose "${compose_files[@]}" pull
+docker compose "${compose_files[@]}" up -d
 
 echo "==> Waiting for New API health check"
 for _ in $(seq 1 40); do
-  if docker compose ps new-api | grep -q "healthy"; then
+  if docker compose "${compose_files[@]}" ps new-api | grep -q "healthy"; then
     break
   fi
   sleep 3
 done
 
-docker compose ps
+docker compose "${compose_files[@]}" ps
 REMOTE
 
 echo
 echo "Deployed New API gateway."
 echo "URL: ${frontend_url}"
 echo "Remote path: ${ssh_target}:${remote_path}"
+echo "Bundled dependencies: ${with_bundled_deps}"
 echo
 echo "First visit the URL to initialize the admin account, then add provider channels and create team tokens."

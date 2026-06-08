@@ -1,0 +1,53 @@
+services:
+  new-api:
+    environment:
+      # 本地/测试模式连接随附 PostgreSQL。
+      SQL_DSN: "postgresql://${POSTGRES_USER:-newapi}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-newapi}"
+
+      # 本地/测试模式连接随附 Redis。
+      REDIS_CONN_STRING: "redis://redis:6379"
+    depends_on:
+      postgres:
+        # 等待 PostgreSQL 就绪后再启动 New API。
+        condition: service_healthy
+      redis:
+        # 等待 Redis 就绪后再启动 New API。
+        condition: service_healthy
+
+  postgres:
+    # 本地/测试用 PostgreSQL。生产环境建议使用外部数据库服务。
+    image: postgres:15-alpine
+    container_name: ai-gateway-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-newapi}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-newapi}"
+    volumes:
+      # 使用 Docker named volume，容器升级后数据仍保留。
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newapi} -d ${POSTGRES_DB:-newapi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    # 本地/测试用 Redis。生产环境建议使用外部 Redis 服务。
+    image: redis:7-alpine
+    container_name: ai-gateway-redis
+    restart: always
+    # 开启 AOF 持久化，降低重启导致的数据丢失风险。
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  # 本地/测试模式下的随附依赖数据卷。
+  postgres_data:
+  redis_data:

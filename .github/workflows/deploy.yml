@@ -37,6 +37,11 @@ on:
         description: New API 对外访问地址。仅 new-api 使用；留空则按 host/port 自动生成。
         required: false
         type: string
+      with_bundled_deps:
+        description: 是否同时部署随附数据库/缓存。仅本地或测试环境使用，生产建议保持 false。
+        required: true
+        default: false
+        type: boolean
       environment:
         description: GitHub Environment 名称，用于审批和环境级密钥。
         required: true
@@ -108,6 +113,7 @@ jobs:
           INPUT_REMOTE_PATH: ${{ inputs.remote_path }}
           INPUT_PUBLIC_PORT: ${{ inputs.public_port }}
           INPUT_FRONTEND_URL: ${{ inputs.frontend_url }}
+          WITH_BUNDLED_DEPS: ${{ inputs.with_bundled_deps }}
         run: |
           set -euo pipefail
 
@@ -141,6 +147,10 @@ jobs:
 
           if [[ "$GATEWAY" == "new-api" && -n "$INPUT_FRONTEND_URL" ]]; then
             args+=("--frontend-url" "$INPUT_FRONTEND_URL")
+          fi
+
+          if [[ "$WITH_BUNDLED_DEPS" == "true" ]]; then
+            args+=("--with-bundled-deps")
           fi
 
           "$script" "${args[@]}"

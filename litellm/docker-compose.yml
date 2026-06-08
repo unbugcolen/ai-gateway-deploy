@@ -17,8 +17,8 @@ services:
       # 路由和模型策略保存在 git 中，并以只读方式挂载到容器。
       - ./config.yaml:/app/config.yaml:ro
     environment:
-      # 内部 PostgreSQL 连接串，连接下方 postgres 服务。
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-litellm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-litellm}"
+      # PostgreSQL 连接串。生产环境指向外部数据库服务。
+      DATABASE_URL: "${DATABASE_URL}"
 
       # LiteLLM 管理/root 密钥和凭据加密盐值。
       LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY}"
@@ -35,29 +35,3 @@ services:
       - "/app/config.yaml"
       - "--port"
       - "4000"
-    depends_on:
-      postgres:
-        # 等待 PostgreSQL 就绪后再启动 LiteLLM。
-        condition: service_healthy
-
-  postgres:
-    # 持久化 LiteLLM key、预算、团队和 UI 状态的数据库。
-    image: postgres:16-alpine
-    container_name: ai-gateway-litellm-postgres
-    restart: always
-    environment:
-      POSTGRES_USER: "${POSTGRES_USER:-litellm}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-      POSTGRES_DB: "${POSTGRES_DB:-litellm}"
-    volumes:
-      # 使用 Docker named volume，容器升级后数据仍保留。
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-litellm} -d ${POSTGRES_DB:-litellm}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-volumes:
-  # Docker 管理的数据卷。执行破坏性维护前先备份。
-  postgres_data:
