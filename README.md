@@ -8,6 +8,7 @@
 - 员工接入使用说明：[docs/employee-onboarding.md](docs/employee-onboarding.md)
 - 20 人团队权限、预算与成本预测：[docs/team-20-ai-gateway-budget-plan.md](docs/team-20-ai-gateway-budget-plan.md)
 - 使用记录与 Langfuse 接入方案：[docs/observability-langfuse-plan.md](docs/observability-langfuse-plan.md)
+- Langfuse 自建部署：[langfuse-self-host/README.md](langfuse-self-host/README.md)
 
 本项目保留四套可落地方案：
 
@@ -100,6 +101,10 @@ ai-gateway-deploy/
 │   ├── team-20-litellm-config.template.yaml
 │   ├── team-20-key-budget-plan.csv
 │   ├── smoke-test.sh
+│   └── README.md
+├── langfuse-self-host/
+│   ├── docker-compose.yml
+│   ├── .env.example
 │   └── README.md
 └── scripts/
     ├── deploy-litellm.sh
