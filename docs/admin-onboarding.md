@@ -125,6 +125,22 @@ gemini-2.5-pro
 
 如果只配置了 DeepSeek key，员工实际可用的模型应只发 `deepseek-chat`。
 
+### 6. 验证 Codex / Responses API
+
+如果员工需要使用 Codex CLI 或 Codex VS Code 扩展，还要额外验证 LiteLLM 的 `/v1/responses`：
+
+```bash
+curl https://ai-gateway.example.com/v1/responses \
+  -H "Authorization: Bearer sk-员工测试-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4.1",
+    "input": "只回复 OK"
+  }'
+```
+
+如果返回 404、接口不存在或模型不兼容，先升级 LiteLLM 镜像，并确认该模型在 LiteLLM 中支持 Responses API。Codex 当前更适合走 Responses API；Cursor、OpenAI SDK、LangChain 等工具通常可以继续走 `/v1/chat/completions`。
+
 ## New API 管理员流程
 
 ### 1. 配置外部数据库和 Redis
