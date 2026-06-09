@@ -1,0 +1,29 @@
+# LiteLLM + Langfuse 可选观测配置片段。
+#
+# 用法：
+# 1. 在 .env.litellm 中配置 LANGFUSE_PUBLIC_KEY、LANGFUSE_SECRET_KEY、LANGFUSE_HOST。
+# 2. 将下面字段合并到 litellm-config.yaml 的 litellm_settings 下。
+# 3. 重启 LiteLLM。
+#
+# 默认推荐“元数据优先”：
+# - 记录模型、key alias、用户、成本、延迟、状态等观测信息。
+# - 不记录 prompt / response 正文，降低代码、客户数据、内部资料泄露风险。
+#
+# 如果某个测试环境需要完整 prompt/response trace，再把 turn_off_message_logging 改成 false。
+#
+# 说明：这里使用 LiteLLM Proxy 原生 Langfuse callback。
+# 如果公司统一走 OpenTelemetry Collector，可另行改成 langfuse_otel 方案。
+
+litellm_settings:
+  # 将成功调用发送到 Langfuse。
+  success_callback: ["langfuse"]
+
+  # 将失败调用也发送到 Langfuse，方便排查上游 401、限流、模型不存在、超时等问题。
+  failure_callback: ["langfuse"]
+
+  # 隐私保护：不把 prompt 和模型响应正文发给 Langfuse。
+  # LiteLLM 仍会保留请求元数据，例如模型、成本、耗时等。
+  turn_off_message_logging: true
+
+  # 隐私保护：避免把 virtual key 哈希、user_id、team_id 等 key 相关信息完整写到外部观测系统。
+  redact_user_api_key_info: true

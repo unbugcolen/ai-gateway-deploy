@@ -1,0 +1,75 @@
+# LiteLLM -> New API 链式网关配置。
+#
+# 设计说明：
+# - 客户端只访问 LiteLLM。
+# - LiteLLM 把 New API 当成一个 OpenAI-compatible 下游。
+# - New API 再根据自己的渠道池把模型转发到 xAI、OpenAI、Anthropic、DeepSeek 等供应商。
+# - Claude Code 调 LiteLLM 的 /v1/messages 时，LiteLLM 会做协议转换，再调用 New API 的 /v1/chat/completions。
+
+model_list:
+  # 推荐给 Claude Code 的 Grok 编码模型。
+  # New API 后台需要存在同名模型，并且 NEW_API_SERVICE_TOKEN 所属分组有权限使用它。
+  - model_name: grok-code-fast-1
+    litellm_params:
+      model: openai/grok-code-fast-1
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Grok 快速推理模型。可按 New API 实际渠道模型名保留或删除。
+  - model_name: grok-4-fast-reasoning
+    litellm_params:
+      model: openai/grok-4-fast-reasoning
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Grok 非推理模型。适合低延迟普通对话或简单改写。
+  - model_name: grok-4-fast-non-reasoning
+    litellm_params:
+      model: openai/grok-4-fast-non-reasoning
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # OpenAI 模型示例。是否可用取决于 New API 后台渠道和分组权限。
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # 成本更低的 OpenAI 模型示例。
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+litellm_settings:
+  # 丢弃 New API 或上游供应商不支持的请求参数，提升多客户端兼容性。
+  drop_params: true
+
+  # 编码 agent 的流式输出可能很久，超时不要设太短。
+  request_timeout: 600
+
+  # 管理员创建新员工 virtual key 时的默认限制。
+  default_key_generate_params:
+    max_budget: 50
+    budget_duration: 30d
+    duration: 90d
+
+  # 管理员创建 key 时允许的上限，避免误发无限额度 key。
+  upperbound_key_generate_params:
+    max_budget: 500
+    budget_duration: 30d
+    duration: 180d
+    rpm_limit: 120
+    tpm_limit: 200000
+
+general_settings:
+  # LiteLLM 管理 API/UI 的 root key，从 .env 读取。
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+  # LiteLLM 自己的 PostgreSQL，用于保存 virtual key、预算、团队和 UI 状态。
+  database_url: os.environ/DATABASE_URL
+
+  # 允许在 LiteLLM UI 中持久化模型配置。
+  store_model_in_db: true

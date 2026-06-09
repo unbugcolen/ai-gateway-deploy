@@ -1,0 +1,28 @@
+name: ${COMPOSE_PROJECT_NAME:-ai-gateway-hybrid}
+
+services:
+  litellm:
+    # LiteLLM 是唯一入口：
+    # - 直连 Claude 官方 API。
+    # - 直连 Gemini 官方 API。
+    # - 通过 New API 服务 token 调 DeepSeek/Qwen/Kimi 渠道池。
+    #
+    # 这个文件用于单独启动/升级 LiteLLM。
+    # 分离启动时请先启动 new-api，并确认 NEW_API_SERVICE_TOKEN 已写入 .env.litellm。
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm-database:main-latest}
+    container_name: ${LITELLM_CONTAINER_NAME:-ai-gateway-hybrid-litellm}
+    restart: always
+    env_file:
+      - .env
+      - .env.litellm
+    ports:
+      - "${LITELLM_PUBLIC_BIND:-0.0.0.0}:${LITELLM_PUBLIC_PORT:-4100}:4000"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "--config"
+      - "/app/config.yaml"
+      - "--port"
+      - "4000"

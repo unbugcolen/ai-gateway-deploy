@@ -1,0 +1,132 @@
+# LiteLLM 混合路由配置。
+#
+# 拓扑：
+# LiteLLM
+# ├─ Claude 官方 API：直连 Anthropic
+# ├─ Gemini 官方 API：直连 Google Gemini
+# ├─ GPT 官方 API：直连 OpenAI
+# └─ New API：作为 DeepSeek / Qwen / Kimi 渠道池
+#
+# 员工只访问 LiteLLM；New API 的服务 token 只给 LiteLLM 使用。
+
+model_list:
+  # Claude 官方 API：推荐作为 Claude Code 主力模型。
+  # 如果 Anthropic 后续更新模型 ID，只需要改 litellm_params.model。
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Claude 官方 API：低成本/轻量任务模型。
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Gemini 官方 API：长上下文、多模态或备用模型。
+  - model_name: gemini-2.5-pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+
+  # Gemini 官方 API：低延迟/低成本备用模型。
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # GPT 官方 API：高阶复杂编码/专业任务模型。
+  # 价格高于普通模型，建议只给管理员、高级研发或临时提额 key 开放。
+  - model_name: gpt-5.5
+    litellm_params:
+      model: openai/gpt-5.5
+      api_key: os.environ/OPENAI_API_KEY
+
+  # GPT 官方 API：更均衡的 GPT 默认直连模型。
+  # 适合 Cursor BYOK、普通研发、工具调用和长上下文非推理任务。
+  - model_name: gpt-4.1
+    litellm_params:
+      model: openai/gpt-4.1
+      api_key: os.environ/OPENAI_API_KEY
+
+  # GPT 官方 API：通用多模态/兼容模型。
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+  # DeepSeek：通过 New API 渠道池转发。
+  # New API 后台需要存在 deepseek-chat 模型，并且 NEW_API_SERVICE_TOKEN 有权限使用。
+  - model_name: deepseek-chat
+    litellm_params:
+      model: openai/deepseek-chat
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # DeepSeek 推理模型：通过 New API 渠道池转发。
+  - model_name: deepseek-reasoner
+    litellm_params:
+      model: openai/deepseek-reasoner
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Qwen：通过 New API 渠道池转发。
+  # 模型名按 New API 后台实际渠道模型名调整。
+  - model_name: qwen-plus
+    litellm_params:
+      model: openai/qwen-plus
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Qwen Coder：适合作为低成本编码备用模型。
+  - model_name: qwen-coder-plus
+    litellm_params:
+      model: openai/qwen-coder-plus
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Kimi：通过 New API 渠道池转发。
+  # 这里暴露给员工的别名是 kimi-chat，实际打到 New API 的模型名是 moonshot-v1-8k。
+  - model_name: kimi-chat
+    litellm_params:
+      model: openai/moonshot-v1-8k
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Kimi 长上下文示例。是否可用取决于 New API 后台渠道。
+  - model_name: kimi-long-context
+    litellm_params:
+      model: openai/moonshot-v1-128k
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+litellm_settings:
+  # 丢弃上游不支持的请求参数，提升 Claude Code、Codex、Cursor 等客户端兼容性。
+  drop_params: true
+
+  # 编码 agent 的流式输出可能很久，超时不要设太短。
+  request_timeout: 600
+
+  # 管理员创建新员工 virtual key 时的默认限制。
+  default_key_generate_params:
+    max_budget: 50
+    budget_duration: 30d
+    duration: 90d
+
+  # 管理员创建 key 时允许的上限，避免误发无限额度 key。
+  upperbound_key_generate_params:
+    max_budget: 500
+    budget_duration: 30d
+    duration: 180d
+    rpm_limit: 120
+    tpm_limit: 200000
+
+general_settings:
+  # LiteLLM 管理 API/UI 的 root key，从 .env 读取。
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+  # LiteLLM 自己的 PostgreSQL，用于保存 virtual key、预算、团队和 UI 状态。
+  database_url: os.environ/DATABASE_URL
+
+  # 允许在 LiteLLM UI 中持久化模型配置。
+  store_model_in_db: true

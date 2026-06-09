@@ -1,0 +1,63 @@
+name: ${COMPOSE_PROJECT_NAME:-ai-gateway-hybrid}
+
+services:
+  new-api:
+    # New API 只负责下游渠道池：DeepSeek、Qwen、Kimi 等。
+    # Claude/Gemini 不建议放这里转，优先由 LiteLLM 直连官方 API。
+    image: ${NEW_API_IMAGE:-calciumion/new-api:latest}
+    container_name: ${NEW_API_CONTAINER_NAME:-ai-gateway-hybrid-new-api}
+    restart: always
+    command: --log-dir /app/logs
+    env_file:
+      - .env
+      - .env.new-api
+    ports:
+      # 默认只暴露到宿主机本地，防止员工绕过 LiteLLM 直接访问 New API。
+      - "${NEW_API_ADMIN_BIND:-127.0.0.1}:${NEW_API_ADMIN_PORT:-3100}:3000"
+    volumes:
+      - new_api_data:/data
+      - new_api_logs:/app/logs
+    extra_hosts:
+      # 兼容 Linux Docker 访问宿主机 PostgreSQL、Redis 或代理。
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  litellm:
+    # LiteLLM 是唯一入口：
+    # - 直连 Claude 官方 API。
+    # - 直连 Gemini 官方 API。
+    # - 通过 New API 服务 token 调 DeepSeek/Qwen/Kimi 渠道池。
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm-database:main-latest}
+    container_name: ${LITELLM_CONTAINER_NAME:-ai-gateway-hybrid-litellm}
+    restart: always
+    env_file:
+      - .env
+      - .env.litellm
+    depends_on:
+      new-api:
+        condition: service_healthy
+    ports:
+      - "${LITELLM_PUBLIC_BIND:-0.0.0.0}:${LITELLM_PUBLIC_PORT:-4100}:4000"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "--config"
+      - "/app/config.yaml"
+      - "--port"
+      - "4000"
+
+volumes:
+  # 仅保存 New API 本地文件和日志；业务数据仍以外部 PostgreSQL 为准。
+  new_api_data:
+  new_api_logs:

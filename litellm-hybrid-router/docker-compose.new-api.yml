@@ -1,0 +1,37 @@
+name: ${COMPOSE_PROJECT_NAME:-ai-gateway-hybrid}
+
+services:
+  new-api:
+    # New API 只负责下游渠道池：DeepSeek、Qwen、Kimi 等。
+    # 这个文件用于单独启动/升级 New API，不影响 LiteLLM 入口。
+    image: ${NEW_API_IMAGE:-calciumion/new-api:latest}
+    container_name: ${NEW_API_CONTAINER_NAME:-ai-gateway-hybrid-new-api}
+    restart: always
+    command: --log-dir /app/logs
+    env_file:
+      - .env
+      - .env.new-api
+    ports:
+      # 默认只暴露到宿主机本地，防止员工绕过 LiteLLM 直接访问 New API。
+      - "${NEW_API_ADMIN_BIND:-127.0.0.1}:${NEW_API_ADMIN_PORT:-3100}:3000"
+    volumes:
+      - new_api_data:/data
+      - new_api_logs:/app/logs
+    extra_hosts:
+      # 兼容 Linux Docker 访问宿主机 PostgreSQL、Redis 或代理。
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  # 仅保存 New API 本地文件和日志；业务数据仍以外部 PostgreSQL 为准。
+  new_api_data:
+  new_api_logs:

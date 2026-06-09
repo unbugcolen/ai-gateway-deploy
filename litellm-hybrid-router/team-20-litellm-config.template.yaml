@@ -1,0 +1,122 @@
+# 使用前确认 .env.litellm 已配置：
+# - DATABASE_URL
+# - LITELLM_MASTER_KEY
+# - LITELLM_SALT_KEY
+# - ANTHROPIC_API_KEY
+# - GEMINI_API_KEY
+# - OPENAI_API_KEY
+# - NEW_API_SERVICE_TOKEN
+# - NEW_API_OPENAI_BASE_URL
+
+model_list:
+  # Claude 官方 API：Claude Code 主力模型。
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Claude 官方 API：轻量任务、CI 和低成本 Claude 兼容。
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Gemini 官方 API：长上下文、多模态、备用高级模型。
+  - model_name: gemini-2.5-pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+
+  # Gemini 官方 API：轻量备用模型。
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # GPT 官方 API：高阶复杂编码/专业任务模型。
+  - model_name: gpt-5.5
+    litellm_params:
+      model: openai/gpt-5.5
+      api_key: os.environ/OPENAI_API_KEY
+
+  # GPT 官方 API：普通 GPT 直连默认模型。
+  - model_name: gpt-4.1
+    litellm_params:
+      model: openai/gpt-4.1
+      api_key: os.environ/OPENAI_API_KEY
+
+  # GPT 官方 API：通用多模态/兼容模型。
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+  # DeepSeek：New API 渠道池。
+  - model_name: deepseek-chat
+    litellm_params:
+      model: openai/deepseek-chat
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # DeepSeek 推理：New API 渠道池。
+  - model_name: deepseek-reasoner
+    litellm_params:
+      model: openai/deepseek-reasoner
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Qwen：New API 渠道池。
+  - model_name: qwen-plus
+    litellm_params:
+      model: openai/qwen-plus
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Qwen Coder：New API 渠道池，推荐给 Cursor 默认编码模型。
+  - model_name: qwen-coder-plus
+    litellm_params:
+      model: openai/qwen-coder-plus
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Kimi 短上下文：New API 渠道池。
+  - model_name: kimi-chat
+    litellm_params:
+      model: openai/moonshot-v1-8k
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+  # Kimi 长上下文：New API 渠道池，仅给少数人开放。
+  - model_name: kimi-long-context
+    litellm_params:
+      model: openai/moonshot-v1-128k
+      api_base: os.environ/NEW_API_OPENAI_BASE_URL
+      api_key: os.environ/NEW_API_SERVICE_TOKEN
+
+litellm_settings:
+  # 丢弃不同客户端传来的非兼容参数，降低 Cursor/Claude Code/Codex 接入失败率。
+  drop_params: true
+
+  # 编码 agent 的流式输出可能很久，超时不要设太短。
+  request_timeout: 600
+
+  # 管理员创建新 key 时的默认值。
+  default_key_generate_params:
+    max_budget: 50
+    budget_duration: 30d
+    duration: 90d
+    rpm_limit: 60
+    tpm_limit: 120000
+
+  # 创建 key 时允许的上限，避免误发无限额度 key。
+  upperbound_key_generate_params:
+    max_budget: 120
+    budget_duration: 30d
+    duration: 180d
+    rpm_limit: 120
+    tpm_limit: 200000
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  store_model_in_db: true
